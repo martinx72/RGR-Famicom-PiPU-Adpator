@@ -1,0 +1,152 @@
+# please note this patch is from Julien Grossholtz <julien.grossholtz@openest.io>
+# source https://lore.kernel.org/buildroot/20211030213600.3445223-3-julien.grossholtz@openest.io/T/#m20c11f701c2444c79ebb83b658726d2c9f3456c5
+# and this worked for the latest buildroot (2021.Nov.07, commit 80623ea83743039f8f629563c040b5e893c27fc3)
+
+
+diff --git a/board/raspberrypi/config_zero2w.txt b/board/raspberrypi/config_zero2w.txt
+new file mode 100644
+index 0000000000..9e6b7f5ccf
+--- /dev/null
++++ b/board/raspberrypi/config_zero2w.txt
+@@ -0,0 +1,29 @@
++# Please note that this is only a sample, we recommend you to change it to fit
++# your needs.
++# You should override this file using BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE.
++# See http://buildroot.org/manual.html#rootfs-custom
++# and http://elinux.org/RPiconfig for a description of config.txt syntax
++
++start_file=start.elf
++fixup_file=fixup.dat
++
++kernel=zImage
++
++# To use an external initramfs file
++#initramfs rootfs.cpio.gz
++
++# Disable overscan assuming the display supports displaying the full resolution
++# If the text shown on the screen disappears off the edge, comment this out
++disable_overscan=1
++
++# How much memory in MB to assign to the GPU on Pi models having
++# 256, 512 or 1024 MB total memory
++gpu_mem_256=100
++gpu_mem_512=100
++gpu_mem_1024=100
++
++# fixes rpi (3B, 3B+, 3A+, 4B ,zero W and zero 2) ttyAMA0 serial console
++dtoverlay=miniuart-bt
++
++# enable autoprobing of Bluetooth driver without need of hciattach/btattach
++dtoverlay=krnbt=on
+diff --git a/board/raspberrypi/genimage-raspberrypizero2w.cfg b/board/raspberrypi/genimage-raspberrypizero2w.cfg
+new file mode 100644
+index 0000000000..7d7987d900
+--- /dev/null
++++ b/board/raspberrypi/genimage-raspberrypizero2w.cfg
+@@ -0,0 +1,31 @@
++image boot.vfat {
++  vfat {
++    files = {
++      "bcm2710-rpi-zero-2.dtb",
++      "rpi-firmware/bootcode.bin",
++      "rpi-firmware/cmdline.txt",
++      "rpi-firmware/config.txt",
++      "rpi-firmware/fixup.dat",
++      "rpi-firmware/start.elf",
++      "rpi-firmware/overlays",
++      "zImage"
++    }
++  }
++  size = 32M
++}
++
++image sdcard.img {
++  hdimage {
++  }
++
++  partition boot {
++    partition-type = 0xC
++    bootable = "true"
++    image = "boot.vfat"
++  }
++
++  partition rootfs {
++    partition-type = 0x83
++    image = "rootfs.ext4"
++  }
++}
+diff --git a/board/raspberrypi/readme.txt b/board/raspberrypi/readme.txt
+index 98c44d80a1..8f0d3144eb 100644
+--- a/board/raspberrypi/readme.txt
++++ b/board/raspberrypi/readme.txt
+@@ -28,6 +28,10 @@ For model Zero (model A+ in smaller form factor):
+ 
+   $ make raspberrypi0_defconfig
+ 
++For model Zero 2 W (model B3 in smaller form factor):
++
++  $ make raspberrypizero2w_defconfig
++
+ For model 2 B:
+ 
+   $ make raspberrypi2_defconfig
+@@ -76,6 +80,7 @@ After building, you should obtain this tree:
+     output/images/
+     +-- bcm2708-rpi-b.dtb           [1]
+     +-- bcm2708-rpi-b-plus.dtb      [1]
++    +-- bcm2710-rpi-zero-2.dtb      [1]
+     +-- bcm2709-rpi-2-b.dtb         [1]
+     +-- bcm2710-rpi-3-b.dtb         [1]
+     +-- bcm2710-rpi-3-b-plus.dtb    [1]
+diff --git a/board/raspberrypizero2w b/board/raspberrypizero2w
+new file mode 120000
+index 0000000000..fcdafc81ed
+--- /dev/null
++++ b/board/raspberrypizero2w
+@@ -0,0 +1 @@
++raspberrypi
+\ No newline at end of file
+diff --git a/configs/raspberrypizero2w_defconfig b/configs/raspberrypizero2w_defconfig
+new file mode 100644
+index 0000000000..451b037fa3
+--- /dev/null
++++ b/configs/raspberrypizero2w_defconfig
+@@ -0,0 +1,36 @@
++BR2_arm=y
++BR2_cortex_a53=y
++BR2_ARM_FPU_NEON_VFPV4=y
++
++# Linux headers same as kernel, 5.10 series
++BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_10=y
++
++BR2_TOOLCHAIN_BUILDROOT_CXX=y
++
++BR2_LINUX_KERNEL=y
++BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
++BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,581049d718caf95f5feb00607ac748d5841cf27c)/linux-581049d718caf95f5feb00607ac748d5841cf27c.tar.gz"
++BR2_LINUX_KERNEL_DEFCONFIG="bcm2709"
++
++# Build the DTB from the kernel sources
++BR2_LINUX_KERNEL_DTS_SUPPORT=y
++BR2_LINUX_KERNEL_INTREE_DTS_NAME="bcm2710-rpi-zero-2"
++BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
++
++BR2_PACKAGE_RPI_FIRMWARE=y
++BR2_PACKAGE_RPI_FIRMWARE_BOOTCODE_BIN=y
++BR2_PACKAGE_RPI_FIRMWARE_VARIANT_PI=y
++BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="board/raspberrypizero2w/config_zero2w.txt"
++
++# MicroSD images generation tools
++BR2_PACKAGE_HOST_DOSFSTOOLS=y
++BR2_PACKAGE_HOST_GENIMAGE=y
++BR2_PACKAGE_HOST_MTOOLS=y
++
++# Filesystem / image
++BR2_TARGET_ROOTFS_EXT2=y
++BR2_TARGET_ROOTFS_EXT2_4=y
++BR2_TARGET_ROOTFS_EXT2_SIZE="120M"
++# BR2_TARGET_ROOTFS_TAR is not set
++BR2_ROOTFS_POST_BUILD_SCRIPT="board/raspberrypizero2w/post-build.sh"
++BR2_ROOTFS_POST_IMAGE_SCRIPT="board/raspberrypizero2w/post-image.sh"
+-- 
+2.31.1
